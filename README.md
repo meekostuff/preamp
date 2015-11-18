@@ -69,17 +69,17 @@ Installation
 
 2. Open a **supported** browser and navigate to the following page
 	
-		http://your.domain.com/path/to/preamp/test/page1.html
+		http://your.domain.com/path/to/preamp/test/normal.html
 	
 	Visually inspect the displayed page for the following possible failures:
 	
 	- text indicating that it is from the viewer page
-	- **TODO:** the test-pages are minimally useful
+	- **TODO:** the test-pages don't illustrate preamp translation
 	
 3. Create a viewer page with styles and scripts but no content.
 Source the preAMP runner-script with this line in the `<head>`
 	
-		<script src="/path/to/preamp/preamp_runner.js"></script>
+		<script src="/path/to/preamp/runner.js"></script>
 		
 	The runner-script 
 	- MUST be in the `<head>` of the page
@@ -97,7 +97,8 @@ Source the preAMP runner-script with this line in the `<head>`
 	- MUST be before any scripts
 	- MUST be before any stylesheets - `<link rel="stylesheet" />` or `<style>`
 
-More details in [Boot Configuration](#boot-configuration).
+More details including boot options can be found in 
+[Interception: Boot Configuration](https://github.com/meekostuff/interception#boot-configuration).
 
 
 Quick Start
@@ -141,7 +142,7 @@ will appear as the final page without the page specific content.
 	<html>
 	<head>
 		<!-- source the preAMP runner-script -->
-		<script src="/path/to/preamp/preamp_runner.js"></script>
+		<script src="/path/to/preamp/runner.js"></script>
 		<!-- source AMP scripts. No @async -->
 		<script src="/path/to/preamp/amp/v0.js"></script>
 		<script custom-element="amp-fit-text" src="/path/to/preamp/amp/v0/amp-fit-text-0.1.js"></script>
@@ -163,7 +164,7 @@ This process results in a DOM tree something like this:
 	<html>
 	<head>
 		<!-- source the preAMP runner-script -->
-		<script src="/path/to/preamp/preamp_runner.js"></script>
+		<script src="/path/to/preamp/runner.js"></script>
 		<!-- source AMP scripts. No @async -->
 		<script src="/path/to/preamp/amp/v0.js"></script>
 		<script custom-element="amp-fit-text" src="/path/to/preamp/amp/v0/amp-fit-text-0.1.js"></script>
@@ -210,68 +211,4 @@ This section lists the AMP-HTML elements and what HTML elements are translated t
 ### `<amp-carousel>`
 
 1. `<marquee>`: all attributes copied
-
-
-Boot Configuration
-------------------
-
-### Preparation
-
-Assuming the default [installation](#installation) was successful,
-use these steps to prepare for site specific configuration.
-
-1. Copy `viewer.html` from the preamp directory to the root directory of your domain.
-
-	If you have unix shell access to the domain's server 
-
-			cd /directory/of/your/domain
-			cp path/to/preamp/viewer.html .
-	
-2. Edit the viewer page to source the preamp runner-script, replacing this line
-	
-		<script src="./preamp_runner.js"></script>
-	
-	with this line
-
-		<script src="/path/to/preamp/preamp_runner.js"></script>
-
-	Also update the path to other scripts, including AMP scripts.
-	
-3. Copy `options.js` from the preamp directory to the root directory of your domain.
-	
-			cp path/to/preamp/options.js .
-
-4. Concatenate your modified `options.js` with `boot.js` from the preamp directory
-and store in `boot.js` of the root directory.
-	
-			cat options.js path/to/preamp/boot.js > boot.js
-
-5. Source the modified preamp boot-script into your pages -
-preferably before any stylesheets - 
-with this line in the `<head>` of each page 
-	
-			<script src="/boot.js"></script>
-
-
-Now you have a simple setup allowing you to:
-
-- modify your options without affecting the preamp installation, and
-- update preamp without overwriting your options.
-
-When you want to:
-
-+ modify options
-	- edit your copy of `options.js`
-	- repeat step 4 to rebuild your boot-script
-
-+ update preamp
-	- overwrite the preamp directory with the latest version
-	- repeat step 4
-
-+ minify boot.js
-	- minify boot.js to boot.min.js in the path/to/preamp directory
-	- repeat step 4 with `path/to/preamp/boot.min.js`
-
-
-Details of boot options available can be found in [Interception: Boot options](https://github.com/meekostuff/interception#boot-options).
 
