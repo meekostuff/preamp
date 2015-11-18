@@ -18,7 +18,7 @@ Overview
 
 2. **Yes,** if you pre-process your valid HTML into AMP-HTML before the AMP engine initialiszes. 
 
-Implementing pre-processing would be fairly straight-forward except that modern browsers implement resource prefetching during page load, even of resources that the pre-processing might remove or disable. <small>( Working-around this prefetching is, in fact, one of the main reasons for AMP-HTMLs existence. The most commonly used AMP-HTML tag is `<amp-img>` to replace `<img>`. )</small>) 
+Implementing pre-processing would be fairly straight-forward except that modern browsers implement resource prefetching during page load, even of resources that the pre-processing might remove or disable. <small>( Working-around this prefetching is, in fact, one of the main reasons for AMP-HTMLs existence. The most commonly used AMP-HTML tag is `<amp-img>` to replace `<img>`. )</small> 
 
 preAMP works around this prefetching by *redirecting* the browser to a **viewer-page** to cancel the prefetching and implement preprocessing of the landing-page's content to use AMP-HTML. All AMP scripts go in the viewer-page rather than the content page. 
 
@@ -195,7 +195,7 @@ This process results in a DOM tree something like this:
 Preprocessing
 -------------
 
-This section lists the AMP-HTML elements and what HTML elements are translated to them.
+This section lists the AMP-HTML elements and what HTML elements are translated to them.  
 **WARN:** Expect this section to change / expand.
 
 ### `<amp-img>`
