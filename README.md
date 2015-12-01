@@ -12,13 +12,13 @@ Expect usage to change and the documentation to be out-of-date.
 Overview
 --------
 
-**Question:** Can you create an AMP site without giving up on valid HTML content?
+**Question:** Can you create an AMP-powered site without giving up on valid HTML content?
 
 1. **No.** AMP dictates that your pages must replace some valid HTML tags with AMP-specified custom-elements.
 
-2. **Yes,** if you pre-process your valid HTML into AMP-HTML before the AMP engine initialiszes. 
+2. **Yes,** if you pre-process your valid HTML into AMP-HTML before the AMP engine initializes. 
 
-Implementing pre-processing would be fairly straight-forward except that modern browsers implement resource prefetching during page load, even of resources that the pre-processing might remove or disable. <small>( Working-around this prefetching is, in fact, one of the main reasons for AMP-HTMLs existence. The most commonly used AMP-HTML tag is `<amp-img>` to replace `<img>`. )</small> 
+Implementing pre-processing would be straight-forward except that modern browsers implement resource prefetching during page load, even of resources that the pre-processing might remove or disable. <small>( Working-around this prefetching is, in fact, one of the main reasons for AMP-HTMLs existence. The most commonly used AMP-HTML tag is `<amp-img>` to replace `<img>`. )</small> 
 
 preAMP works around this prefetching by *redirecting* the browser to a **viewer-page** to cancel the prefetching and implement preprocessing of the landing-page's content to use AMP-HTML. All AMP scripts go in the viewer-page rather than the content page. 
 
@@ -200,15 +200,38 @@ This section lists the AMP-HTML elements and what HTML elements are translated t
 
 ### `<amp-img>`
 
-1. `<img>`: all attributes copied
+- `<img>`: 
+    + All attributes copied
+
+- `<a rel="embed image">`: 
+    + All attributes copied, except:
+    + `@href` translated as `@src`
+    + `.textContent` translated as `@alt`
 
 
 ### `<amp-video>`
 
-1. `<video>`: all attributes copied
+- `<video>`: 
+    + All descendent nodes transferred
+    + All attributes copied
+
+- `<a rel="embed video">`: 
+    + All descendant nodes transferred
+    + All attributes copied, except:
+    + `@href` translated as `@src`
 
 
 ### `<amp-carousel>`
 
-1. `<marquee>`: all attributes copied
+- `<marquee>`: 
+    + All descendant nodes transferred
+    + All attributes copied
+
+
+### `<meeko-transclude>`
+
+- `<a rel="embed content">`:
+    + All descendant nodes transferred
+    + All attributes copied, except:
+    + `@href` translated as `@src`
 
