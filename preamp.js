@@ -26,10 +26,15 @@ function registerTranscluder() {
 			var element = this;
 			if (!element.hasAttribute('src')) return;
 			var src = element.getAttribute('src');
+			// FIXME need a URLUtils implementation
 			src = resolveURL(src);
+			var srcParts = src.split('#'); 
+			var src = srcParts[0];
+			var hash = srcParts[1];
 			var details = {};
+			if (hash) details.main = '#' + hash;
 			// TODO allow alternate-transforms and fragment-identifiers (in details)
-			interceptor.transclude(src, interceptor.DEFAULT_TRANSFORM_ID, 'empty', element, details);
+			interceptor.transclude(src, TRANSCLUDE_TAG, 'empty', element, details);
 		}
 	});
 }
@@ -110,9 +115,17 @@ var ampTransformer = function(doc, details) {
 	return doc;
 }
 
+interceptor.registerProcessor('fragment', FragmentProcessor);
+
 interceptor.registerTransformer(interceptor.DEFAULT_TRANSFORM_ID, [
 	{ type: 'script', template: ampTransformer },
 	{ type: 'body' }
 ]);
+
+interceptor.registerTransformer(TRANSCLUDE_TAG, [
+	{ type: 'script', template: ampTransformer },
+	{ type: 'main' }
+]);
+
 
 })();
