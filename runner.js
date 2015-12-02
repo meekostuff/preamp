@@ -950,8 +950,7 @@ var embedTranslations = {
 
 var ampTransformer = function(doc, details) {
 	var srcTag;
-	_.forOwn(translations, function(srcTag) {
-		var tag = translations[srcTag];
+	_.forOwn(translations, function(tag, srcTag) {
 		_.forEach(DOM.findAll(srcTag, doc), function(srcNode) {
 			var node = doc.createElement(tag);
 			_.forEach(srcNode.attributes, function(attr) {
@@ -998,8 +997,6 @@ var ampTransformer = function(doc, details) {
 	
 	return doc;
 }
-
-interceptor.registerProcessor('fragment', FragmentProcessor);
 
 interceptor.registerTransformer(interceptor.DEFAULT_TRANSFORM_ID, [
 	{ type: 'script', template: ampTransformer },
