@@ -105,7 +105,7 @@ Quick Start
 -----------
 
 Create a HTML document (page.html) with some page specific content. 
-Any page specific scripts, styles or meta-data should go in `<head>`. 
+Page-specific meta-data and fallback-styles should go in `<head>`. 
 
     <!DOCTYPE html>
 	<html manifest="/viewer.html"><!-- @manifest is the link to the viewer page -->
@@ -203,7 +203,7 @@ This section lists the AMP-HTML elements and what HTML elements are translated t
 - `<img>`: 
     + All attributes copied
 
-- `<a rel="embed image">`: 
+- `<a rel="embed image">`, `<link rel="embed image">`: 
     + All attributes copied, except:
     + `@href` translated as `@src`
     + `.textContent` translated as `@alt`
@@ -215,7 +215,7 @@ This section lists the AMP-HTML elements and what HTML elements are translated t
     + All descendent nodes transferred
     + All attributes copied
 
-- `<a rel="embed video">`: 
+- `<a rel="embed video">`, `<link rel="embed video">`: 
     + All descendant nodes transferred
     + All attributes copied, except:
     + `@href` translated as `@src`
@@ -230,7 +230,7 @@ This section lists the AMP-HTML elements and what HTML elements are translated t
 
 ### `<meeko-transclude>`
 
-- `<a rel="embed content">`:
+- `<a rel="embed content">`, `<link rel="embed content">`:
     + All descendant nodes transferred
     + All attributes copied, except:
     + `@href` translated as `@src`
