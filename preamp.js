@@ -17,7 +17,9 @@ var TranscludeElement;
 
 // FIXME transcluder needs to hook into AMP's lazy-loading
 function registerTranscluder() {
-	TranscludeElement = document.registerElement(TRANSCLUDE_TAG, { prototype: HTMLElement.prototype });
+	TranscludeElement = document.registerElement(TRANSCLUDE_TAG, { 
+		prototype: Object.create(HTMLElement.prototype) 
+	});
 
 	// FIXME should have at least a readonly `src` property
 	// FIXME only performs transclusion first time enters document

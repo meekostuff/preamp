@@ -49,15 +49,30 @@ var filter = function(a, fn, context) {
 	return output;
 }
 
-var find = function(a, fn, context) {
+function _find(a, fn, context, byIndex) {
 	for (var n=a.length, i=0; i<n; i++) {
 		var item = a[i];
 		var success = fn.call(context, item, i, a);
-		if (success) return item;
+		if (success) return byIndex ? i : item;
 	}
+	return byIndex ? -1 : undefined;
+}
+
+var findIndex = function(a, fn, context) {
+	return _find(a, fn, context, true);
+}
+
+var find = function(a, fn, context) {
+	return _find(a, fn, context, false);
 }
 
 var words = function(text) { return text.split(/\s+/); }
+
+var forIn = function(object, fn, context) {
+	for (var key in object) {
+		fn.call(context, object[key], key, object);
+	}
+}
 
 var forOwn = function(object, fn, context) {
 	var keys = Object.keys(object);
@@ -91,12 +106,51 @@ var assign = function(dest, src) {
 assign(Meeko.stuff, {
 	uc: uc, lc: lc, words: words, // string
 	contains: includes, // FIXME deprecated
-	includes: includes, forEach: forEach, some: some, every: every, map: map, filter: filter, find: find, // array
-	forOwn: forOwn, isEmpty: isEmpty, defaults: defaults, assign: assign, extend: assign // object
+	includes: includes, forEach: forEach, some: some, every: every, map: map, filter: filter, find: find, findIndex: findIndex, // array
+	forIn: forIn, forOwn: forOwn, isEmpty: isEmpty, defaults: defaults, assign: assign, extend: assign // object
 });
 
 
 var _ = Meeko.stuff;
+
+/*
+ ### extend console
+	+ `console.logLevel` allows logging to be switched off
+	
+	NOTE:
+	+ this assumes log, info, warn, error are defined
+*/
+
+var console = this.console;
+if (!console.debug) console.debug = console.log;
+var logLevels = _.words('all debug info warn error none');
+_.forEach(logLevels, function(level) {
+	var _level = '_' + level;
+	if (!console[level]) return;
+	console[_level] = console[level];
+});
+
+var currentLogLevel = 'all';
+
+Object.defineProperty(console, 'logLevel', {
+	get: function() { return currentLogLevel; },
+	set: function(newLevel) {
+		newLevel = _.lc(newLevel);
+		if (logLevels.indexOf(newLevel) < 0) return; // WARN??
+		currentLogLevel = newLevel;
+		var found = false;
+		_.forEach(logLevels, function(level) {
+			var _level = '_' + level;
+			if (level === newLevel) found = true;
+			if (!console[_level] || !found) console[level] = function() {};
+			else console[level] = console[_level];
+		});
+	}
+});
+
+console.logLevel = 'warn'; // FIXME should be a boot-option
+console.info('logLevel: ' + console.logLevel);
+
 
 /*
  ### extend Promise
@@ -121,7 +175,9 @@ isPromise: function(object) {
 },
 
 isThenable: function(object) {
-	return object && object.then && typeof object.then === 'function';
+	return object ?
+		object.then && typeof object.then === 'function' :
+		false;
 }
 
 });
@@ -146,7 +202,7 @@ var defer = function(value) {
 	if (Promise.isPromise(value)) return value.then();
 	if (Promise.isThenable(value)) return Promise.resolve(value);
 	if (typeof value === 'function') 
-		return Promise.resolve().then(function() { value() });
+		return Promise.resolve().then(value);
 	// NOTE otherwise we have a non-thenable, non-function something
 	return Promise.resolve(value).then();
 }
@@ -189,7 +245,8 @@ return new Promise(function(resolve, reject) {
 }
 
 _.defaults(Promise, {
-	asap: asap, defer: defer, pipe: pipe, reduce: reduce
+	later: defer, // WARN some browsers already define Promise.defer
+	asap: asap, pipe: pipe, reduce: reduce
 });
 
 
@@ -249,7 +306,7 @@ var init = function(href, baseURL) {
 var keys = ['source','protocol','hostname','port','pathname','search','hash'];
 var parser = /^([^:\/?#]+:)?(?:\/\/([^:\/?#]*)(?::(\d*))?)?([^?#]*)?(\?[^#]*)?(#.*)?$/;
 
-var parse = window.URL && 'href' in window.URL.prototype ? 
+var parse = ((typeof window.URL === 'function') && ('href' in window.URL.prototype)) ? 
 function(href) {
 	return new window.URL(href);
 } :
@@ -452,6 +509,18 @@ function dispatchEvent(target, type, params) { // NOTE every JS initiated event 
 	return target.dispatchEvent(event);
 }
 
+var managedEvents = [];
+
+function manageEvent(type) {
+	if (_.includes(managedEvents, type)) return;
+	managedEvents.push(type);
+	window.addEventListener(type, function(event) {
+		// NOTE stopPropagation() prevents custom default-handlers from running. DOMSprockets nullifies it.
+		event.stopPropagation = function() { console.warn('event.stopPropagation() is a no-op'); }
+		event.stopImmediatePropagation = function() { console.warn('event.stopImmediatePropagation() is a no-op'); }
+	}, true);
+}
+
 
 var insertNode = function(conf, refNode, node) { // like imsertAdjacentHTML but with a node and auto-adoption
 	var doc = refNode.ownerDocument;
@@ -548,7 +617,7 @@ return {
 	getTagName: getTagName,
 	contains: contains, matches: matches,
 	findId: findId, find: find, findAll: findAll, closest: closest, siblings: siblings,
-	dispatchEvent: dispatchEvent,
+	dispatchEvent: dispatchEvent, manageEvent: manageEvent,
 	cloneContents: cloneContents, adoptContents: adoptContents,
 	insertNode: insertNode, 
 	checkStyleSheets: checkStyleSheets
@@ -567,6 +636,7 @@ return {
 
 /* TODO
 	+ hide (at runtime) / show (after stylesheets loaded)
+	+ maybe `interceptor.fetch|transform|transclude` should be on `window`. 
  */
 
 (function() {
@@ -582,6 +652,10 @@ var _ = Meeko.stuff;
 var DOM = Meeko.DOM;
 var URL = Meeko.URL;
 var Promise = window.Promise;
+
+/*
+	domLoaded - intercepts DOMContentLoaded and window.onload
+*/
 
 var domLoaded = (function() {
 // WARN this function assumes document.readyState is available
@@ -629,7 +703,220 @@ function onComplete(e) {
 })();
 
 
+/*
+	historyManager
+	- wrapper for `history` mostly to cloak pushState|replaceState, and popstate events
+*/
+
+var historyManager = Meeko.historyManager = (function() {
+
+var historyManager = {};
+
+// cloak history.pushState|replaceState
+history._pushState = history.pushState;
+history.pushState = function() { console.warn('history.pushState() is no-op.'); }
+history._replaceState = history.replaceState;
+history.replaceState = function() { console.warn('history.replaceState() is no-op.'); }
+
+window.addEventListener('popstate', function(e) {
+		if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+		else e.stopPropagation();
+		
+		return historyManager.onPopState(e.state);
+	}, true);
+
+var stateStore = {};
+var currentState;
+var predictedState;
+var popStateHandler;
+
+function createState(data) {
+	var timeStamp = Date.now();
+	var state = _.assign({}, data);
+	state.timeStamp = timeStamp;
+	var id = timeStamp;
+	stateStore[id] = state;
+	return id;
+}
+
+function lookupState(id) {
+	return stateStore[id];
+}
+
+var started = false;
+
+// FIXME historyManager methods - apart from start() - should throw until start()
+_.defaults(historyManager, {
+
+start: function(onInitialState, onPopState) { // FIXME this should call onPopState if history.state is defined
+	if (started) throw Error('historyManager has already started');
+	started = true;
+	popStateHandler = onPopState;
+	data = {
+		url: document.URL,
+		title: document.title
+	};
+	var id = this.createState(data);
+	var state = lookupState(id);
+
+	history._replaceState(state, state.title);
+	currentState = id;
+
+	return onInitialState(id);
+},
+
+onPopState: function(state) {
+	var prevState = currentState;
+	var nextState = state.timeStamp;
+	currentState = nextState;
+	predictedState = undefined;
+	if (!popStateHandler) return;
+	
+	return popStateHandler(nextState, prevState);
+},
+
+createState: function(data) {
+	try { new URL(data.url); }
+	catch (err) { throw Error('createState(data) MUST receive a fully-resolved `url`'); }
+	if (data.title == null) throw Error('createState(data) MUST receive a `title`');
+
+	return createState(data);
+},
+
+getStateData: function(id) {
+	return lookupState(id);
+},
+
+getCurrentState: function() {
+	return currentState;
+},
+
+isCurrentState: function(id) {
+	return currentState === id;
+},
+
+predictState: function(id) {
+	if (!lookupState(id)) throw Error('Invalid state ID: ' + id);
+	predictedState = id;
+	return true;
+},
+
+cancelState: function(id) {
+	if (currentState === id) return false;
+	if (predictedState !== id) return true;
+	predictedState = undefined;
+	return true;
+},
+
+confirmState: function(id, useReplace) { // TODO can't confirmState during popstate
+	if (currentState === id) return false;
+	if (predictedState !== id) return false;
+	var state = lookupState(id);
+	var title = state.title;
+	var url = state.url;
+
+	if (useReplace) history._replaceState(state, title, url);
+	else history._pushState(state, title, url);
+	currentState = id;
+
+	return true;
+},
+
+updateState: function(id, data) {
+	var state = lookupState(id);
+	var timeStamp = state.timeStamp;
+	_.assign(state, data);
+	state.timeStamp = timeStamp;
+
+	stateStore[id] = state;
+	if (!this.isCurrentState(id)) return;
+	
+	history._replaceState(state, state.title, state.url);
+}
+
+});
+
+
+return historyManager;
+
+})();
+
+/*
+	Cache
+*/
+var Cache = Meeko.Cache = (function() {
+
+var defaults = {
+	match: matchRequest
+}
+
+var Cache = function(options) {
+	this.store = [];
+	this.options = {};
+	_.assign(this.options, defaults);
+	if (options) _.assign(this.options, options);
+}
+
+function matchRequest(a, b) { // default cache.options.match
+	if (a.url !== b.url) return false;
+	return true;
+}
+
+function getIndex(cache, request) {
+	return _.findIndex(cache.store, function(item) {
+		return cache.options.match(item.request, request);
+	});
+}
+
+function getItem(cache, request) {
+	var i = getIndex(cache, request);
+	if (i < 0) return;
+	return cache.store[i];
+}
+
+
+_.assign(Cache.prototype, {
+
+put: function(request, response) {
+	var cache = this;
+	cache['delete'](request); // FIXME use a compressor that accepts this
+	cache.store.push({
+		request: request,
+		response: response
+	});
+},
+
+match: function(request) {
+	var cache = this;
+	var item = getItem(cache, request);
+	if (item) return item.response;
+},
+
+'delete': function(request) { // FIXME only deletes first match
+	var cache = this;
+	var i = getIndex(cache, request);
+	if (i < 0) return;
+	cache.store.splice(i, 1);
+}
+
+});
+
+return Cache;
+
+})();
+
+/*
+	interceptor
+*/
+
 var interceptor = Meeko.interceptor = {};
+
+// cloak location.assign|replacej
+// FIXME location.assign|replace should be JS equivalents of browser functionality
+location._assign = location.assign;
+location.assign = function() { console.warn('location.assign() is no-op.'); }
+location._replace = location.replace;
+location.replace = function() { console.warn('location.replace() is no-op.'); }
 
 var started = false;
 domLoaded.then(function() { // fallback
@@ -638,7 +925,14 @@ domLoaded.then(function() { // fallback
 	});
 });
 
+// FIXME interceptor methods - apart from start() - should throw until start()
 _.assign(interceptor, {
+
+scope: new URL(document.URL).base,
+
+inScope: function(url) { 
+	return url.indexOf(this.scope) === 0;
+},
 
 DEFAULT_TRANSFORM_ID: DEFAULT_TRANSFORM_ID,
 
@@ -654,12 +948,47 @@ start: function(options) {
 	
 	var interceptor = this;
 
-	history.replaceState(null, url, url);
+	var stateId;
+	historyManager.start(
+		function(initialState) { stateId = initialState; }, 
+		function(nextState, prevState) {
+			interceptor.popStateHandler(nextState, prevState);
+		}
+	);
+
+	historyManager.updateState(stateId, {
+		url: url,
+		title: url
+	});
 	document.title = url;
 
 	var docFu = interceptor.fetch(url);
 
 	return Promise.pipe(domLoaded, [
+
+	function() {
+		_.forEach(_.words('click mousedown'), function(type) { // FIXME touchstart, etc
+
+			DOM.manageEvent(type);
+			window.addEventListener(type, function(e) {
+				if (e.defaultPrevented) return;
+				var acceptDefault = interceptor.onClick(e);
+				if (acceptDefault === false) e.preventDefault();
+			}, false); // onClick conditionally generates requestnavigation event
+
+		});
+
+		_.forEach(_.words('sbumit'), function(type) { // FIXME touchstart, etc
+
+			DOM.manageEvent(type);
+			window.addEventListener(type, function(e) {
+				if (e.defaultPrevented) return;
+				var acceptDefault = interceptor.onSubmit(e);
+				if (acceptDefault === false) e.preventDefault();
+			}, false); // onSubmit conditionally generates requestnavigation event
+
+		});
+	},
 
 	function() { return options && options.waitUntil; },
 
@@ -676,7 +1005,10 @@ start: function(options) {
 	},
 
 	function(doc) {
-		history.replaceState(null, doc.title, url); // FIXME implement `state` management
+		historyManager.updateState(stateId, {
+			url: url, // not necessary - already set above
+			title: doc.title
+		});
 		document.title = doc.title;
 		return interceptor.transclude(doc, DEFAULT_TRANSFORM_ID, 'replace', document.body);
 	},
@@ -690,6 +1022,88 @@ start: function(options) {
 		});
 	}
 
+	]);
+},
+
+bfCache: {}, // FIXME this should be private or protected
+
+navigate: function(url, useReplace) {
+	var interceptor = this;
+
+	if (!interceptor.inScope(url)) {
+		if (useReplace) location._replace(url);
+		else location._assign(url);
+	}
+
+	var nextState = historyManager.createState({
+		url: url,
+		title: url
+	});
+
+	return Promise.pipe(null, [
+
+	function() {
+		historyManager.predictState(nextState);
+		return interceptor.prerender(url, DEFAULT_TRANSFORM_ID);
+	},
+	function(node) {
+		var prevState = historyManager.getCurrentState();
+		if (!historyManager.confirmState(nextState, useReplace)) return;
+		interceptor.bfCache[prevState] = {
+			body: document.body
+		};
+		DOM.insertNode('replace', document.body, node);
+	}
+	
+	]);
+},
+
+popStateHandler: function(nextState, prevState) {
+	var interceptor = this;
+	var bodyCache = interceptor.bfCache;
+	bodyCache[prevState] = {
+		body: document.body
+	};
+	var node = bodyCache[nextState].body;
+	DOM.insertNode('replace', document.body, node);
+},
+
+transclusionCache: new Cache({ // FIXME should be private or protected
+	match: function(a, b) {
+		if (a.url !== b.url) return false;
+		if (a.transform != b.transform) return false;
+		if (a.main != b.main) return false;
+		return true;
+	}
+}),
+
+prerender: function(url, transformId, details) {
+	var interceptor = this;
+
+	var request = {
+		url: url,
+		transform: transformId,
+		main: details && details.main
+	};
+
+	var response = interceptor.transclusionCache.match(request);
+	if (response) return Promise.resolve(response.node);
+		
+	return Promise.pipe(url, [
+	function(url) {
+		return interceptor.fetch(url);
+	},
+	function(doc) {
+		return interceptor.transform(doc, transformId, details);
+	},
+	function(node) {
+		var response = {
+			url: url,
+			node: node
+		}
+		interceptor.transclusionCache.put(request, response);
+		return node;
+	}
 	]);
 },
 
@@ -743,6 +1157,93 @@ return new Promise(function(resolve, reject) {
 	xhr.send();
 });
 
+},
+
+onClick: function(e) { // return false means success
+	var interceptor = this;
+
+	if (e.button != 0) return; // FIXME what is the value for button in IE's W3C events model??
+	if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return; // FIXME do these always trigger modified click behavior??
+
+	// Find closest <a href> to e.target
+	var linkElement = DOM.closest(e.target, 'a, [link]');
+	if (!linkElement) return;
+	var hyperlink;
+	if (DOM.getTagName(linkElement) === 'a') hyperlink = linkElement;
+	else {
+		hyperlink = DOM.find('a, link', linkElement);
+		if (!hyperlink) hyperlink = DOM.closest('a', linkElement);
+		if (!hyperlink) return;
+	}
+	var href = hyperlink.getAttribute('href');
+	if (!href) return; // not really a hyperlink
+
+	var baseURL = new URL(document.URL);
+	var url = baseURL.resolve(href); // TODO probably don't need to resolve on browsers that support pushstate
+
+	// NOTE The following creates a pseudo-event and dispatches to frames in a bubbling order.
+	// FIXME May as well use a virtual event system, e.g. DOMSprockets
+	var details = {
+		url: url,
+		element: hyperlink
+	}; // TODO more details?? event??
+
+	var predicting = (e.type !== 'click');
+	interceptor.triggerNavigationEvent(details.url, details, predicting);
+	return false;
+},
+
+onSubmit: function(e) { // return false means success
+	var interceptor = this;
+
+	// test submit
+	var form = e.target;
+	if (form.target) return; // no iframe
+	var baseURL = new URL(document.URL);
+	var action = baseURL.resolve(form.action); // TODO probably don't need to resolve on browsers that support pushstate
+	
+	var details = {
+		element: form
+	};
+	var method = _.lc(form.method);
+	switch(method) {
+	case 'get':
+		var oURL = URL(action);
+		var query = encode(form);
+		details.url = oURL.nosearch + (oURL.search || '?') + query + oURL.hash;
+		break;
+	default: return; // TODO handle POST
+	}
+	
+	interceptor.triggerNavigationEvent(details.url, details);
+	return false;
+	
+	function encode(form) { // FIXME MUST match browser implementations of encode
+		var data = [];
+		_.forEach(form.elements, function(el) {
+			if (!el.name) return;
+			data.push(el.name + '=' + encodeURIComponent(el.value));
+		});
+		return data.join('&');
+	}
+},
+
+triggerNavigationEvent: function(url, details, predicting) {
+	var interceptor = this;
+	var type = predicting ? 'predictnavigation' : 'requestnavigation';
+	Promise.later(function() {
+		var acceptDefault = DOM.dispatchEvent(
+				details.element, 
+				type,
+				{ detail: details.url }
+			);
+
+		if (predicting) return;
+
+		if (acceptDefault !== false) {
+			interceptor.navigate(details.url);
+		}
+	});
 }
 
 
@@ -751,6 +1252,7 @@ return new Promise(function(resolve, reject) {
 
 /*
 	normalize() is called between html-parsing (internal) and document transformation (external function).
+	TODO: maybe this should be interceptor.normalize()
 */
 function normalize(doc, details) { 
 
@@ -768,16 +1270,17 @@ function normalize(doc, details) {
 				absURL = baseURL.resolve(url);
 				if (absURL === url) return match;
 				replacements++;
-				return "url(" + quote + absURL + quote + ")";
+				return 'url(' + quote + absURL + quote + ')';
 			});
 		if (replacements) node.textContent = text;
 	});
 
-	return resolveAll(doc, baseURL, false);
+	return resolveAll(doc, baseURL);
 }
 
 /*
 	resolveAll() resolves all URL attributes
+	TODO: maybe this should be URL.resolveAll()
 */
 var resolveAll = function(doc, baseURL) {
 
@@ -848,10 +1351,10 @@ resolveURL: function(url, baseURL) {
 	return finalURL;
 }
 
-});
+}); // # end AttributeDescriptor.prototype
 
 var urlAttributes = {};
-_.forEach(_.words('link@<href script@<src img@<longDesc,<src,+srcset iframe@<longDesc,<src object@<data embed@<src video@<poster,<src audio@<src source@<src,+srcset input@formAction,<src button@formAction,<src a@+ping,href area@href q@cite blockquote@cite ins@cite del@cite form@action'), function(text) {
+_.forEach(_.words('link@<href script@<src img@<longdesc,<src,+srcset iframe@<longdesc,<src object@<data embed@<src video@<poster,<src audio@<src source@<src,+srcset input@formaction,<src button@formaction,<src a@+ping,href area@href q@cite blockquote@cite ins@cite del@cite form@action'), function(text) {
 	var m = text.split('@'), tagName = m[0], attrs = m[1];
 	var attrList = urlAttributes[tagName] = {};
 	_.forEach(attrs.split(','), function(attrName) {
@@ -1141,7 +1644,9 @@ var TranscludeElement;
 
 // FIXME transcluder needs to hook into AMP's lazy-loading
 function registerTranscluder() {
-	TranscludeElement = document.registerElement(TRANSCLUDE_TAG, { prototype: HTMLElement.prototype });
+	TranscludeElement = document.registerElement(TRANSCLUDE_TAG, { 
+		prototype: Object.create(HTMLElement.prototype) 
+	});
 
 	// FIXME should have at least a readonly `src` property
 	// FIXME only performs transclusion first time enters document
