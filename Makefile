@@ -21,7 +21,7 @@ YUICOMPRESSOR = yuicompressor
 .SUFFIXES: js md html
 
 TARGETS = boot.js interception_runner.js runner.js
-ALL_TARGETS = ${TARGETS} boot.min.js interception_runner.min.js preamp.min.js runner.js
+ALL_TARGETS = ${TARGETS} boot.min.js interception_runner.min.js preamp.min.js runner.min.js
 
 LIBS = 
 
