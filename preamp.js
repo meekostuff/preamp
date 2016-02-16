@@ -2,6 +2,7 @@
 
 var _ = Meeko.stuff;
 var DOM = Meeko.DOM;
+var transforms = Meeko.transforms;
 var interceptor = Meeko.interceptor;
 
 /* 
@@ -116,12 +117,12 @@ var ampTransformer = function(doc, details) {
 	return doc;
 }
 
-interceptor.registerTransformer(interceptor.DEFAULT_TRANSFORM_ID, [
+transforms.set(interceptor.getDefaultTransform(), [
 	{ type: 'script', template: ampTransformer },
 	{ type: 'body' }
 ]);
 
-interceptor.registerTransformer(TRANSCLUDE_TAG, [
+transforms.set(TRANSCLUDE_TAG, [
 	{ type: 'script', template: ampTransformer },
 	{ type: 'main' }
 ]);
