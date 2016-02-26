@@ -10,10 +10,14 @@ var interceptor = Meeko.interceptor;
 */
 
 var TRANSCLUDE_TAG = 'meeko-transclude';
+var PRERENDER_TAG = 'meeko-prerender';
+
 var TranscludeElement;
+var PrerenderElement;
 
 (window.AMP = window.AMP || []).push(function() {
 	registerTranscluder();
+	registerPrerender();
 });
 
 // FIXME transcluder needs to hook into AMP's lazy-loading
@@ -40,6 +44,63 @@ function registerTranscluder() {
 			interceptor.transclude(src, TRANSCLUDE_TAG, 'empty', element, details);
 		}
 	});
+}
+
+// FIXME prerender needs to hook into AMP's lazy-loading
+function registerPrerender() {
+	PrerenderElement = function(element) {
+		AMP.BaseElement.call(this, element);
+	}
+
+	PrerenderElement.prototype = Object.create(AMP.BaseElement.prototype);
+
+	_.assign(PrerenderElement.prototype, {
+		renderOutsideViewport: function() {
+			return false;
+		},
+
+		isLayoutSupported: function(layout) {
+			return true;
+		},
+
+		buildCallback: function() {
+			this.element.style.position = 'absolute';
+			this.element.style.zIndex = -1;
+			this.element.style.opacity = '0';
+			this.element.style.width = '1px';
+			this.element.style.height = '1px';
+		},
+
+		isRelayoutNeeded: function() {
+			return false;
+		},
+
+		layoutCallback: function() {
+	  		// Now that we are rendered, stop rendering the element to reduce
+			// resource consumption.
+			this.element.style.width = 0;
+			this.element.style.height = 0;
+			return Promise.resolve();
+		},
+
+		viewportCallback: function(leaving) {
+			var element = this.element;
+			var src = element.getAttribute('src');
+			if (!src) return Promise.resolve();
+			// FIXME need a URLUtils implementation
+			src = resolveURL(src);
+			var srcParts = src.split('#'); 
+			var src = srcParts[0];
+			var hash = srcParts[1];
+			var details = {};
+			if (hash) details.main = '#' + hash;
+			// TODO allow alternate-transforms and fragment-identifiers (in details)
+			return interceptor.prerender(src, interceptor.getDefaultTransform(), details);
+		}
+	});
+
+	AMP.registerElement(PRERENDER_TAG, PrerenderElement);
+
 }
 
 function resolveURL(relURL) {
