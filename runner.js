@@ -1819,15 +1819,19 @@ var PrerenderElement;
 
 // FIXME transcluder needs to hook into AMP's lazy-loading
 function registerTranscluder() {
-	TranscludeElement = document.registerElement(TRANSCLUDE_TAG, { 
-		prototype: Object.create(HTMLElement.prototype) 
-	});
+	TranscludeElement = function(element) {
+		AMP.BaseElement.call(this, element);
+	}
 
 	// FIXME should have at least a readonly `src` property
 	// FIXME only performs transclusion first time enters document
 	_.assign(TranscludeElement.prototype, {
-		attachedCallback: function() {
-			var element = this;
+		isLayoutSupported: function(layout) {
+			return layout === 'fixed' || layout === 'fixed-height' || layout === 'fill';
+		},
+
+		layoutCallback: function() {
+			var element = this.element;
 			if (!element.hasAttribute('src')) return;
 			var src = element.getAttribute('src');
 			// FIXME need a URLUtils implementation
@@ -1838,9 +1842,11 @@ function registerTranscluder() {
 			var details = {};
 			if (hash) details.main = '#' + hash;
 			// TODO allow alternate-transforms and fragment-identifiers (in details)
-			interceptor.transclude(src, TRANSCLUDE_TAG, 'empty', element, details);
+			return interceptor.transclude(src, TRANSCLUDE_TAG, 'empty', element, details);
 		}
 	});
+
+	AMP.registerElement(TRANSCLUDE_TAG, TranscludeElement);
 }
 
 // FIXME prerender needs to hook into AMP's lazy-loading
